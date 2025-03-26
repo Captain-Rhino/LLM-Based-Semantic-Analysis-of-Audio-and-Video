@@ -8,7 +8,7 @@ plt.rcParams['axes.unicode_minus'] = False          # 正确显示负号
 
 # 视频路径
 video_path = r"G:\videochat\my_design\test_video.mp4"
-output_dir_base = r"G:\videochat\my_design\K_frame_test_interval"
+output_dir_base = r"G:\videochat\test_result\K_frame_test_interval"
 os.makedirs(output_dir_base, exist_ok=True)
 
 # 参数设置
