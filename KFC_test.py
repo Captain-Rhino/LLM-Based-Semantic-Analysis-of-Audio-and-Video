@@ -8,7 +8,7 @@ plt.rcParams['axes.unicode_minus'] = False          # 正确显示负号
 
 # 视频路径
 video_path = r"G:\videochat\my_design\test_video.mp4"
-output_dir_base = r"G:\videochat\my_design\K_frame_test_threshold"
+output_dir_base = r"G:\videochat\my_design\K_frame_test_interval"
 os.makedirs(output_dir_base, exist_ok=True)
 
 # 参数设置
@@ -16,7 +16,7 @@ threshold = 15
 frame_intervals = list(range(1, 31))  # [1, 2, ..., 30]
 param_results = {}
 
-for threshold in thresholds:
+for frame_interval in frame_intervals:
     # 初始化参数
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -55,7 +55,7 @@ for threshold in thresholds:
             prev_gray = gray
 
     cap.release()
-    param_results[threshold] = len(timestamps)
+    param_results[frame_interval] = len(timestamps)
 
 # 画图
 x_labels = [str(k) for k in param_results.keys()]
@@ -63,17 +63,17 @@ y_values = list(param_results.values())
 
 plt.figure(figsize=(10, 5))
 plt.plot(x_labels, y_values, marker='o', linestyle='-')
-plt.title("不同阈值下的关键帧数量对比（固定帧间隔为2）")
-plt.xlabel("threshold")
+plt.title("不同帧间隔下的关键帧数量对比（固定阈值为15）")
+plt.xlabel("frame_interval")
 plt.ylabel("关键帧数量")
 plt.grid(True)
 plt.xticks(rotation=0)
 plt.tight_layout()
 plt.show()
 
-# 可选：保存数据为 JSON
-json_path = os.path.join(output_dir_base, "frame_test_threshold_results.json")
+# 保存数据为 JSON
+json_path = os.path.join(output_dir_base, "frame_test_interval_results.json")
 with open(json_path, "w", encoding="utf-8") as f:
     json.dump(param_results, f, ensure_ascii=False, indent=2)
 
-print(f"✅ 所有阈值测试完成，结果已保存到：{json_path}")
+print(f"✅ 所有帧间隔测试完成，结果已保存到：{json_path}")
