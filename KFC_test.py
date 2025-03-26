@@ -13,7 +13,7 @@ os.makedirs(output_dir_base, exist_ok=True)
 
 # 参数设置
 threshold = 15
-frame_intervals = list(range(1, 31))  # [1, 2, ..., 30]
+frame_intervals = list(range(1,61, 1))
 param_results = {}
 
 for frame_interval in frame_intervals:
