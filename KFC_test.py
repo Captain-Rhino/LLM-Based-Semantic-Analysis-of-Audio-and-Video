@@ -12,8 +12,8 @@ output_dir_base = r"G:\videochat\my_design\K_frame_test_threshold"
 os.makedirs(output_dir_base, exist_ok=True)
 
 # 参数设置
-frame_interval = 2
-thresholds = list(range(10, 31, 1))  # 从 10 到 30（包含 30），步长为 1
+threshold = 15
+frame_intervals = list(range(1, 31))  # [1, 2, ..., 30]
 param_results = {}
 
 for threshold in thresholds:
