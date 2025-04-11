@@ -1,7 +1,7 @@
 import subprocess
 
 # 定义你想要执行的命令
-command = ["python", "G:/videochat/SenseVoice/speech_server_IN_SENSEVOICE.py"]
+command = ["python", "G:/videochat/SenseVoice/speech_server.py"]
 
 # 使用 subprocess 执行命令
 try:
