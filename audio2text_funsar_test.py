@@ -1,6 +1,8 @@
 import time
 import torch
+from click.core import batch
 from funasr import AutoModel
+from tensorflow.python.data.experimental.ops.distribute import batch_sizes_for_worker
 
 # 🔍 检查 GPU 状态
 print("🔧 CUDA 是否可用：", torch.cuda.is_available())
@@ -25,7 +27,7 @@ model = AutoModel(
 
 # 音频路径
 audio_path = r"G:\videochat\my_design\test_video.aac"
-result = model.generate(input=audio_path)
+result = model.generate(input=audio_path,batch_size=16)
 
 # 📄 打印结果
 print("\n📄 识别结果：")
