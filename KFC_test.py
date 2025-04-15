@@ -15,8 +15,8 @@ model, preprocess = load_from_name("ViT-B-16", device=device)
 model.eval()
 
 # 配置路径
-video_path = "test_2.mp4"
-asr_json_path = "transcription_result.json"
+video_path = "test_video.mp4"
+asr_json_path = "transcription.json"
 output_dir = "CNCLIP_keyframes"
 os.makedirs(output_dir, exist_ok=True)
 

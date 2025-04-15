@@ -5,8 +5,8 @@ import base64
 import json
 
 # ==== Step 1: 从 mp4 中提取音频 ====
-video_path = r'G:\videochat\my_design\test_2.mp4'  # 输入视频路径
-audio_path = r'G:\videochat\my_design\test_2.mp3'  # 输出音频路径
+video_path = r'G:\videochat\my_design\test_video.mp4'  # 输入视频路径
+audio_path = r'G:\videochat\my_design\test_video.mp3'  # 输出音频路径
 
 # 如果音频文件不存在，则从视频中提取音频
 if not os.path.exists(audio_path):
@@ -36,8 +36,11 @@ if response.status_code == 200:
 
     results = transcription_result.get("res", [])
 
+    # 获取视频文件名并生成 JSON 文件名
+    video_filename = os.path.splitext(os.path.basename(video_path))[0]  # 获取文件名，不包括扩展名
+    output_json_path = f'transcription_{video_filename}.json'  # 根据视频文件名生成对应的 JSON 文件名
+
     # 保存为 JSON 文件
-    output_json_path = 'transcription_result.json'
     with open(output_json_path, 'w', encoding='utf-8') as json_file:
         json.dump(results, json_file, ensure_ascii=False, indent=4)
 
