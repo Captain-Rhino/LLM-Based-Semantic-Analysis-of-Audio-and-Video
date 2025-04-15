@@ -15,8 +15,8 @@ model, preprocess = load_from_name("ViT-B-16", device=device)
 model.eval()
 
 # 配置路径
-video_path = "test_video.mp4"
-asr_json_path = "transcription.json"
+video_path = "test_2.mp4"
+asr_json_path = "transcription_result.json"
 output_dir = "CNCLIP_keyframes"
 os.makedirs(output_dir, exist_ok=True)
 
@@ -37,8 +37,8 @@ for i, seg in enumerate(tqdm(asr_data, desc="Processing segments")):
     end_frame = int(end_time * fps)
 
     text_len = len(text)
-    # 自动设定帧数：每 40 字提一帧，最少 1 帧
-    num_frames_to_extract = max(1, text_len // 40)
+    # 自动设定帧数：每 20 字提一帧，最少 1 帧
+    num_frames_to_extract = max(1, text_len // 20)
 
     # 平均抽取帧 index（帧范围太小时保证至少有1帧）
     if end_frame - start_frame < num_frames_to_extract:
