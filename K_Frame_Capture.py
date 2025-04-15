@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 # 视频路径与输出路径
-video_path = r"G:\videochat\my_design\test_video.mp4"
+video_path = r"G:\videochat\my_design\test_2.mp4"
 output_dir = r"G:\videochat\my_design\K_frame"
 os.makedirs(output_dir, exist_ok=True)
 
@@ -18,8 +18,8 @@ if not success or prev_frame is None:
     raise ValueError("❌ 视频第一帧读取失败，可能视频损坏或格式不受支持。")
 
 # 参数设定
-frame_interval = 2  #每两帧比较一次
-threshold = 18
+frame_interval = 15 #每两帧比较一次
+threshold = 30
 fps = cap.get(cv2.CAP_PROP_FPS)
 # print(fps)    视频帧率
 
