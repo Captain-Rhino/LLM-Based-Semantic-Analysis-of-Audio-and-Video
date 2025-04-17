@@ -4,7 +4,7 @@ import torch
 from A_audio_extractor import extract_audio_from_video
 from A_audio_recognition import transcribe_audio
 from A_keyframe_extractor import extract_keyframes_with_clip
-from A_model_inference import generate_video_summary,build_structured_prompt
+from A_model_inference import generate_video_summary,build_structured_prompt,summarize_video_from_all_frames
 from cn_clip.clip import load_from_name
 
 def process_video(video_path, output_dir, api_key):
@@ -28,7 +28,7 @@ def process_video(video_path, output_dir, api_key):
     model, preprocess = load_from_name("ViT-B-16", device=device)
     model.eval()
 
-    # 提取关键帧并生成总结
+    # 提取关键帧并保存信息
     keyframes_combined = extract_keyframes_with_clip(video_path, output_dir, transcription, model, preprocess, device)
 
     # 保存关键帧和结果
@@ -39,15 +39,18 @@ def process_video(video_path, output_dir, api_key):
 
     print(f"✅ 关键帧+语音信息保存在：{final_json_path}")
 
-    # 调用大模型分析每一帧图像和文本生成总结
-    for idx, frame_info in enumerate(keyframes_combined):
-        is_last = (idx == len(keyframes_combined) - 1)
-        prompt = build_structured_prompt(frame_info, is_last=is_last)
-        #构建prompt
-        print(prompt)
-        image_path = frame_info["image_path"]
-        summary = generate_video_summary(image_path, prompt, api_key)
-        print(f"🎬 视频内容总结：{summary}")
+    # 调用大模型统一总结所有帧
+    summary_output_path = os.path.join(output_dir, f"{video_name}_summary.json")
+    summarize_video_from_all_frames(keyframes_combined, api_key, output_summary_path=summary_output_path)
+    # # 调用大模型分析每一帧图像和文本生成总结
+    # for idx, frame_info in enumerate(keyframes_combined):
+    #     is_last = (idx == len(keyframes_combined) - 1)
+    #     prompt = build_structured_prompt(frame_info, is_last=is_last)
+    #     #构建prompt
+    #     print(prompt)
+    #     image_path = frame_info["image_path"]
+    #     summary = generate_video_summary(image_path, prompt, api_key)
+    #     print(f"🎬 视频内容总结：{summary}")
 
     #for frame_info in keyframes_combined:
     #    print(frame_info)
