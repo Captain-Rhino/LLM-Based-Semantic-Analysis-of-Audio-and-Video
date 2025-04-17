@@ -11,7 +11,7 @@ messages = [
             {
             "image": "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20241022/emyrja/dog_and_girl.jpeg"
             },
-            {"text": "这是什么?"},
+            {"text": "这是什么😊?"},
         ],
     }
 ]
@@ -22,7 +22,7 @@ response = MultiModalConversation.call(
     messages=messages)
 print(f"模型第一轮输出：{response.output.choices[0].message.content[0]['text']}")
 messages.append(response['output']['choices'][0]['message'])
-user_msg = {"role": "user", "content": [{"text": "做一首诗描述这个场景"}]}
+user_msg = {"role": "user", "content": [{"text": "刚才你回答了什么"}]}
 messages.append(user_msg)
 response = MultiModalConversation.call(
     # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",

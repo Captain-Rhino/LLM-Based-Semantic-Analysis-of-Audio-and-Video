@@ -4,7 +4,7 @@ import torch
 from A_audio_extractor import extract_audio_from_video
 from A_audio_recognition import transcribe_audio
 from A_keyframe_extractor import extract_keyframes_with_clip
-from A_model_inference import generate_video_summary
+from A_model_inference import generate_video_summary,build_structured_prompt
 from cn_clip.clip import load_from_name
 
 def process_video(video_path, output_dir, api_key):
@@ -40,10 +40,21 @@ def process_video(video_path, output_dir, api_key):
     print(f"✅ 关键帧+语音信息保存在：{final_json_path}")
 
     # 调用大模型分析每一帧图像和文本生成总结
-    for frame_info in keyframes_combined:
+    for idx, frame_info in enumerate(keyframes_combined):
+        is_last = (idx == len(keyframes_combined) - 1)
+        prompt = build_structured_prompt(frame_info, is_last=is_last)
+        #构建prompt
+        print(prompt)
         image_path = frame_info["image_path"]
-        summary = generate_video_summary(image_path, frame_info["text"], api_key)
+        summary = generate_video_summary(image_path, prompt, api_key)
         print(f"🎬 视频内容总结：{summary}")
+
+    #for frame_info in keyframes_combined:
+    #    print(frame_info)
+    #    #测试frame_info
+    #    image_path = frame_info["image_path"]
+    #    summary = generate_video_summary(image_path, frame_info["text"], api_key)
+    #    print(f"🎬 视频内容总结：{summary}")
 
 # 使用示例
 video_path = r'G:\videochat\my_design\test_video.mp4'  # 替换为你的视频路径

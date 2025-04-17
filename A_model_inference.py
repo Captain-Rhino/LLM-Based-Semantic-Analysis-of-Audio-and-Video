@@ -1,6 +1,19 @@
 import base64
 import requests
 import json
+from dashscope import MultiModalConversation
+
+def build_structured_prompt(frame_info, is_last=False):
+    base = (
+        f"当前是第 {frame_info['segment_index']} 段，这段的语音文本是：“{frame_info['text']}”，"
+        f"语音起始时间是 {frame_info['start']} 秒，语音结束时间是 {frame_info['end']} 秒，"
+        f"图像在该视频的第 {frame_info['timestamp']} 秒取得，"
+    )
+    if is_last:
+        return base + "请你理解该图片和文本，当前是最后一个关键帧，请结合前面的关键帧和信息来总结该视频内容。"
+    else:
+        return base + "请你理解该图片和文本，先不描述，等待后续指令。"
+
 
 def generate_video_summary(image_path, text, api_key):
     with open(image_path, 'rb') as img_file:
