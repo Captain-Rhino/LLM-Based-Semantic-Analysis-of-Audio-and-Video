@@ -19,7 +19,7 @@ with open(image_path, "rb") as img_file:
 url = "http://localhost:11434/api/generate"
 headers = {"Content-Type": "application/json"}
 data = {
-    "model": "llama3.2-vision",
+    "model": "llama3.2-vision:11b",
     "prompt": "这张图片里有什么？请详细描述",
     "images": [base64_image],  # 编码后图片
     "stream": False  # 关闭流式返回
