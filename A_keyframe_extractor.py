@@ -69,7 +69,7 @@ def extract_keyframes_with_clip(video_path, output_dir, asr_data, model, preproc
             sim = torch.cosine_similarity(text_feat, img_feat).item()
             timestamp = idx / fps
             save_path = os.path.join(output_dir, f"kf_{i:03d}_{j:02d}_{timestamp:.2f}s.jpg")
-            print(f"正在保存关键帧到：{save_path}")  # 调试用，打印路径
+            #print(f"正在保存关键帧到：{save_path}")  # 调试用，打印路径
 
             # 保存图像
             cv2.imwrite(save_path, frame_raw)

@@ -32,7 +32,8 @@ def process_video(video_path, output_dir, api_key):
     keyframes_combined = extract_keyframes_with_clip(video_path, output_dir, transcription, model, preprocess, device)
 
     # 保存关键帧和结果
-    final_json_path = os.path.join(output_dir, f"{video_path.split('.')[0]}_cnclip.json")
+    video_name = os.path.splitext(os.path.basename(video_path))[0]
+    final_json_path = os.path.join(output_dir, f"{video_name}_cnclip.json")
     with open(final_json_path, "w", encoding="utf-8") as f:
         json.dump(keyframes_combined, f, ensure_ascii=False, indent=2)
 
