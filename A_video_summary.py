@@ -59,9 +59,10 @@ def process_video(video_path, output_dir, api_key):
     #    summary = generate_video_summary(image_path, frame_info["text"], api_key)
     #    print(f"🎬 视频内容总结：{summary}")
 
-# 使用示例
-video_path = r'G:\videochat\my_design\test_video.mp4'  # 替换为你的视频路径
-output_dir = r'G:\videochat\my_design\CNCLIP_keyframes_test_video'   # 替换为输出关键帧的文件夹路径
-api_key = "sk-e6f5a000ba014f92b4857a6dcd782591"  # 替换为你的 API 密钥
+# 输入地址
+video_path = r'G:\videochat\my_design\test_movie.mp4'  # 视频路径
+video_name = os.path.splitext(os.path.basename(video_path))[0] #得到videoname
+output_dir = f"G:/videochat/my_design/CNCLIP_keyframes_{video_name}"   # 输出关键帧的文件夹路径
+api_key = "sk-e6f5a000ba014f92b4857a6dcd782591"  # API 密钥
 
 process_video(video_path, output_dir, api_key)
