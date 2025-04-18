@@ -6,6 +6,10 @@ from A_audio_recognition import transcribe_audio
 from A_keyframe_extractor import extract_keyframes_with_clip
 from A_model_inference import generate_video_summary,build_structured_prompt,summarize_video_from_all_frames
 from cn_clip.clip import load_from_name
+import time
+
+#计时
+start_time = time.time()
 
 def process_video(video_path, output_dir, api_key):
 
@@ -60,9 +64,12 @@ def process_video(video_path, output_dir, api_key):
     #    print(f"🎬 视频内容总结：{summary}")
 
 # 输入地址
-video_path = r'G:\videochat\my_design\test_movie.mp4'  # 视频路径
+video_path = r'G:\videochat\my_design\test_video.mp4'  # 视频路径
 video_name = os.path.splitext(os.path.basename(video_path))[0] #得到videoname
 output_dir = f"G:/videochat/my_design/CNCLIP_keyframes_{video_name}"   # 输出关键帧的文件夹路径
 api_key = "sk-e6f5a000ba014f92b4857a6dcd782591"  # API 密钥
 
 process_video(video_path, output_dir, api_key)
+
+end_time = time.time()
+print(f"全程用时:{end_time-start_time:.2f}秒")

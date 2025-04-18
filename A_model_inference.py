@@ -70,7 +70,7 @@ def summarize_video_from_all_frames(keyframes_combined, api_key, output_summary_
         else:
             reply = "❌ 错误：模型未返回有效结果"
         print("🎬 视频内容总结：", reply)
-        time.sleep(1)
+        #time.sleep(1)
 
         messages.append({
             "role": "user",
