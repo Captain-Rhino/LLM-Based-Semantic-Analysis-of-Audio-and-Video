@@ -7,6 +7,7 @@ from PIL import Image
 from cn_clip.clip import load_from_name
 import cn_clip.clip as clip
 import librosa
+import glob
 
 
 class KeyframeExtractor:
@@ -72,22 +73,26 @@ class KeyframeExtractor:
         return sorted(keyframes, key=lambda x: x["timestamp"])
 
     def _text_guided_extraction(self, video_path, output_dir, asr_data):
-        """文本引导模式（保留所有字段）"""
+        """文本引导的关键帧抽取（含CLIP特征保存）"""
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
         keyframes = []
+
+        # 创建特征存储目录
+        feat_dir = os.path.join(output_dir, "clip_features")
+        os.makedirs(feat_dir, exist_ok=True)
 
         for seg_idx, seg in enumerate(tqdm(asr_data, desc="文本引导抽帧")):
             start_frame = int(seg["start"] * fps)
             end_frame = int(seg["end"] * fps)
             text = seg["text"]
 
-            # 动态抽帧
-            num_frames = max(1, len(text) // 20)
+            # 动态计算抽帧数量（根据文本长度）
+            num_frames = max(1, min(3, len(text) // 20))  # 每段最多3帧
             step = max(1, (end_frame - start_frame) // (num_frames + 1))
             frame_indices = [start_frame + step * i for i in range(1, num_frames + 1)]
 
-            # 文本特征
+            # 文本特征提取（提前计算）
             text_input = torch.cat([clip.tokenize(text)]).to(self.device)
             with torch.no_grad():
                 text_feat = self.model.encode_text(text_input)
@@ -98,7 +103,7 @@ class KeyframeExtractor:
                 ret, frame = cap.read()
                 if not ret: continue
 
-                # 计算相似度
+                # 图像特征提取
                 image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                 image_input = self.preprocess(image).unsqueeze(0).to(self.device)
                 with torch.no_grad():
@@ -106,9 +111,18 @@ class KeyframeExtractor:
                     image_feat /= image_feat.norm(dim=-1, keepdim=True)
                     sim = (image_feat * text_feat).sum().item()
 
-                # 保存结果（保留所有字段）
-                save_path = os.path.join(output_dir, f"text_kf_{seg_idx:03d}_{frame_idx:05d}.jpg")
+                # 保存关键帧图像
+                frame_filename = f"text_kf_{seg_idx:03d}_{frame_idx:05d}.jpg"
+                save_path = os.path.join(output_dir, frame_filename)
                 cv2.imwrite(save_path, frame)
+
+                # 保存CLIP特征（新增）
+                feat_filename = f"feat_{seg_idx:03d}_{frame_idx:05d}.pt"
+                torch.save({
+                    "image_feat": image_feat.cpu(),
+                    "text_feat": text_feat.cpu()
+                }, os.path.join(feat_dir, feat_filename))
+
                 keyframes.append({
                     "mode": "text_guided",
                     "segment_idx": seg_idx,
@@ -120,11 +134,89 @@ class KeyframeExtractor:
                     "text": text,
                     "text_len": len(text),
                     "similarity": round(sim, 4),
-                    "image_path": save_path
+                    "image_path": save_path,
+                    "feat_path": os.path.join(feat_dir, feat_filename)  # 新增特征路径
                 })
 
         cap.release()
+
+        # 合并所有特征到单个文件（适配训练）
+        self._compile_features(feat_dir, os.path.join(output_dir, "clip_features.pth"))
+
         return keyframes
+
+    def _compile_features(self, feat_dir, output_path):
+        """将所有特征编译为训练用的.pth文件"""
+        image_feats = []
+        text_feats = []
+
+        for feat_file in sorted(glob.glob(os.path.join(feat_dir, "*.pt"))):
+            data = torch.load(feat_file)
+            image_feats.append(data["image_feat"])
+            text_feats.append(data["text_feat"])
+
+        torch.save({
+            "image_feats": torch.cat(image_feats),
+            "text_feats": torch.cat(text_feats)
+        }, output_path)
+
+        print(f"✅ CLIP特征已编译保存至 {output_path}")
+
+#原来的text_guided,不带_compile_features_
+    # def _text_guided_extraction(self, video_path, output_dir, asr_data):
+    #     """文本引导模式（保留所有字段）"""
+    #     cap = cv2.VideoCapture(video_path)
+    #     fps = cap.get(cv2.CAP_PROP_FPS)
+    #     keyframes = []
+    #
+    #     for seg_idx, seg in enumerate(tqdm(asr_data, desc="文本引导抽帧")):
+    #         start_frame = int(seg["start"] * fps)
+    #         end_frame = int(seg["end"] * fps)
+    #         text = seg["text"]
+    #
+    #         # 动态抽帧
+    #         num_frames = max(1, len(text) // 20)
+    #         step = max(1, (end_frame - start_frame) // (num_frames + 1))
+    #         frame_indices = [start_frame + step * i for i in range(1, num_frames + 1)]
+    #
+    #         # 文本特征
+    #         text_input = torch.cat([clip.tokenize(text)]).to(self.device)
+    #         with torch.no_grad():
+    #             text_feat = self.model.encode_text(text_input)
+    #             text_feat /= text_feat.norm(dim=-1, keepdim=True)
+    #
+    #         for rank, frame_idx in enumerate(frame_indices):
+    #             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+    #             ret, frame = cap.read()
+    #             if not ret: continue
+    #
+    #             # 计算相似度
+    #             image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    #             image_input = self.preprocess(image).unsqueeze(0).to(self.device)
+    #             with torch.no_grad():
+    #                 image_feat = self.model.encode_image(image_input)
+    #                 image_feat /= image_feat.norm(dim=-1, keepdim=True)
+    #                 sim = (image_feat * text_feat).sum().item()
+    #
+    #             # 保存结果（保留所有字段）
+    #             save_path = os.path.join(output_dir, f"text_kf_{seg_idx:03d}_{frame_idx:05d}.jpg")
+    #             cv2.imwrite(save_path, frame)
+    #             keyframes.append({
+    #                 "mode": "text_guided",
+    #                 "segment_idx": seg_idx,
+    #                 "frame_idx": frame_idx,
+    #                 "frame_rank": rank,
+    #                 "timestamp": round(frame_idx / fps, 2),
+    #                 "start": seg["start"],
+    #                 "end": seg["end"],
+    #                 "text": text,
+    #                 "text_len": len(text),
+    #                 "similarity": round(sim, 4),
+    #                 "image_path": save_path
+    #             })
+    #
+    #     cap.release()
+    #     return keyframes
 
     def _visual_guided_extraction(self, video_path, output_dir, num_frames=10):
         """纯视觉模式（新增字段）"""

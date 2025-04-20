@@ -5,91 +5,89 @@ import time
 from A_audio_extractor import extract_audio_from_video
 from A_audio_recognition import transcribe_audio
 from A_keyframe_extractor import KeyframeExtractor
-from A_model_inference import summarize_video_from_all_frames,build_structured_prompt,generate_video_summary
-from A_visualizer import generate_wordcloud,generate_mindmap
+from A_model_inference import summarize_video_from_all_frames
+from A_visualizer import generate_wordcloud
 from cn_clip.clip import load_from_name
-from collections import Counter
+from A_clip_finetune import train_adaptor  # 新增导入
 
 
-# ===========================
-# 视频分析主流程（重构版）
-# ===========================
-def process_video(video_path, output_dir, api_key):
+def process_video(video_path, output_dir, api_key, do_finetune=False):  # 新增do_finetune参数
     start_time = time.time()
-
-    # 创建输出目录
+    #新建文件路径
     os.makedirs(output_dir, exist_ok=True)
 
-    # 音频路径设置
-    audio_path = video_path.replace(".mp4", ".mp3")
-
-    # Step 1: 提取音频
-    audio_path = extract_audio_from_video(video_path, audio_path)
-    print(f"🎵 音频提取完成：{audio_path}")
-
-    # Step 2: 语音识别
+    # Step 1-3: 原有音频处理和CLIP加载不变
+    #step1:提取音频mp3
+    audio_path = extract_audio_from_video(video_path, video_path.replace(".mp4", ".mp3"))
+    #step2:转录文本
     transcription = transcribe_audio(audio_path, api_key)
-    print(f"📝 语音转录完成，共 {len(transcription)} 条句子")
-
-    # Step 3: 加载 CLIP 模型
-    print("🧠 正在加载 CLIP 模型...")
+    #step3:加载clip
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model, preprocess = load_from_name("ViT-B-16", device=device)
     model.eval()
 
-    # Step 4: 提取关键帧并匹配语音片段
-    # === 关键帧抽取 ===
+    # Step 4: 关键帧提取（自动保存CLIP特征）
     extractor = KeyframeExtractor(device=device)
     keyframes = extractor.extract_keyframes(
         video_path=video_path,
         output_dir=output_dir,
-        asr_data=transcription  # 可接受None
+        asr_data=transcription
     )
 
-    # 保存关键帧信息
-    video_name = os.path.splitext(os.path.basename(video_path))[0]
-    keyframe_json_path = os.path.join(output_dir, f"{video_name}_cnclip.json")
-    with open(keyframe_json_path, "w", encoding="utf-8") as f:
-        json.dump(keyframes, f, ensure_ascii=False, indent=2)
-    print(f"✅ 关键帧+文本信息已保存：{keyframe_json_path}")
+    # 新增训练环节
+    if do_finetune:  # 只有开启标志时才训练
+        print("\n🔧 开始CLIP适配层微调...")
+        train_data_path = os.path.join(output_dir, "clip_features.pth")
+        adaptor = train_adaptor(
+            data_path=train_data_path,
+            epochs=10,
+            batch_size=8
+        )
+        # 保存适配层权重供后续使用
+        torch.save(adaptor.state_dict(), os.path.join(output_dir, "clip_adaptor.pth"))
 
-    # Step 5: 视频总结
-    summary_output_path = os.path.join(output_dir, f"{video_name}_summary.json")
-    summarize_video_from_all_frames(keyframes, api_key, output_summary_path=summary_output_path)
-    # for idx, frame_info in enumerate(keyframes_combined):
-    #     is_last = (idx == len(keyframes_combined) - 1)
-    #     prompt = build_structured_prompt(frame_info, is_last=is_last)
-    #     print(prompt)
-    #     image_path = frame_info["image_path"]
-    #     summary = generate_video_summary(image_path, prompt, api_key)
-    #     print(f"🎬 视频内容总结：{summary}")
+    # Step 5: 视频总结（自动检测是否存在适配层）
+    #
+    adaptor_path = (
+        os.path.join(output_dir, "clip_adaptor.pth")
+        if do_finetune else
+        "G:/videochat/my_design/adaptor_results/best_adaptor.pth"  # ← 改这里
+    )
 
-    print(f"📄 视频总结完成：{summary_output_path}")
+    if not os.path.exists(adaptor_path):
+        adaptor_path = None  # 如果找不到路径就不传
 
-    # Step 6: 词云或思维导图生成（接口保留）
-    print("\n🎨 生成可视化结果...")
-    wordcloud_path = generate_wordcloud(transcription, summary_output_path,output_dir, video_name)
+    summary_output_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(video_path))[0]}_summary.json")
+    summarize_video_from_all_frames(
+        keyframes,
+        api_key,
+        adaptor_path=adaptor_path,  # 传递适配层路径
+        output_summary_path=summary_output_path
+    )
+    # summarize_video_from_all_frames(
+    #     keyframes,
+    #     api_key,
+    #     adaptor_path=os.path.join(output_dir, "clip_adaptor.pth") if do_finetune else None,  # 传递适配层路径
+    #     output_summary_path=summary_output_path
+    # )
 
-    # from A_visualizer import generate_wordcloud_or_mindmap
-    # generate_wordcloud_or_mindmap(transcription, output_dir)
+    # Step 6: 可视化（原有逻辑不变）
+    generate_wordcloud(transcription, summary_output_path, output_dir,
+                       os.path.splitext(os.path.basename(video_path))[0])
 
-    # Step 7: 视频事件定位与识别（接口保留）
-    # from A_event_detector import detect_video_events
-    # events = detect_video_events(transcription, keyframes_combined)
-    # events_output_path = os.path.join(output_dir, f"{video_name}_events.json")
-    # with open(events_output_path, "w", encoding="utf-8") as f:
-    #     json.dump(events, f, ensure_ascii=False, indent=2)
-    # print(f"📌 事件检测结果保存：{events_output_path}")
-
-    end_time = time.time()
-    print(f"⏱️ 全流程完成，总耗时：{end_time - start_time:.2f} 秒")
+    print(f"⏱️ 全流程完成，总耗时：{time.time() - start_time:.2f} 秒")
 
 
-# ========== 脚本入口 ==========
 if __name__ == "__main__":
-    video_path = r'G:\videochat\my_design\video_without_audio.mp4'
-    video_name = os.path.splitext(os.path.basename(video_path))[0]
-    output_dir = f"G:/videochat/my_design/CNCLIP_keyframes_{video_name}"
+    video_path = r'G:\videochat\my_design\test_video.mp4'
+    output_dir = f"G:/videochat/my_design/CNCLIP_keyframes_{os.path.splitext(os.path.basename(video_path))[0]}"
     api_key = "sk-e6f5a000ba014f92b4857a6dcd782591"
 
-    process_video(video_path, output_dir, api_key)
+    # 新增--finetune参数控制是否训练
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--finetune", action="store_true", help="Enable CLIP adaptor fine-tuning")
+    args = parser.parse_args()
+
+    process_video(video_path, output_dir, api_key, do_finetune=args.finetune)
