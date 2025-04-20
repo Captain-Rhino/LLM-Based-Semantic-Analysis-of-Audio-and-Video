@@ -5,7 +5,7 @@ import time
 from A_audio_extractor import extract_audio_from_video
 from A_audio_recognition import transcribe_audio
 from A_keyframe_extractor import extract_keyframes_with_clip
-from A_model_inference import summarize_video_from_all_frames
+from A_model_inference import summarize_video_from_all_frames,build_structured_prompt,generate_video_summary
 from cn_clip.clip import load_from_name
 
 # ===========================
@@ -49,6 +49,14 @@ def process_video(video_path, output_dir, api_key):
     # Step 5: 视频总结
     summary_output_path = os.path.join(output_dir, f"{video_name}_summary.json")
     summarize_video_from_all_frames(keyframes_combined, api_key, output_summary_path=summary_output_path)
+    # for idx, frame_info in enumerate(keyframes_combined):
+    #     is_last = (idx == len(keyframes_combined) - 1)
+    #     prompt = build_structured_prompt(frame_info, is_last=is_last)
+    #     print(prompt)
+    #     image_path = frame_info["image_path"]
+    #     summary = generate_video_summary(image_path, prompt, api_key)
+    #     print(f"🎬 视频内容总结：{summary}")
+
     print(f"📄 视频总结完成：{summary_output_path}")
 
     # Step 6: 词云或思维导图生成（接口保留）
@@ -69,9 +77,9 @@ def process_video(video_path, output_dir, api_key):
 
 # ========== 脚本入口 ==========
 if __name__ == "__main__":
-    video_path = r'G:\videochat\my_design\test_video.mp4'
+    video_path = r'G:\videochat\my_design\video_without_audio.mp4'
     video_name = os.path.splitext(os.path.basename(video_path))[0]
     output_dir = f"G:/videochat/my_design/CNCLIP_keyframes_{video_name}"
-    api_key = "sk-xxx"  # 替换为你的 API 密钥
+    api_key = "sk-e6f5a000ba014f92b4857a6dcd782591"
 
     process_video(video_path, output_dir, api_key)

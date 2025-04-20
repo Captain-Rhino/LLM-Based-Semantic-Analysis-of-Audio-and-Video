@@ -112,3 +112,88 @@ def summarize_video_from_all_frames(keyframes_combined, api_key, output_summary_
         print("❌ 模型调用失败或未返回有效结果")
         print("返回内容：", response)
         return None
+
+
+
+
+
+
+def summarize_video_from_all_frames(keyframes_combined, api_key, output_summary_path=None):
+    """
+    使用多轮图文对话构建上下文，最后一轮总结整段视频内容。
+    :param keyframes_combined: 包含每一帧图文信息的列表
+    :param api_key: DashScope 的 API Key
+    :param output_summary_path: 可选，最终总结保存的路径
+    """
+    messages = []
+
+    for i, frame in enumerate(keyframes_combined):
+        prompt = (
+            f"当前是第 {frame['segment_index']} 段，这段的语音文本是：“{frame['text']}”，"
+            f"语音起始时间是 {frame['start']} 秒，语音结束时间是 {frame['end']} 秒，"
+            f"图像在该视频的第 {frame['timestamp']} 秒取得，请你理解该图片和文本，先不描述，等待后续指令。"
+        )
+        print(prompt)
+
+        user_msg = {
+            "role": "user",
+            "content": [
+                {"image": frame['image_path']},
+                {"text": prompt}
+            ]
+        }
+
+        # 调用接口模拟“记住这一帧”
+        response = MultiModalConversation.call(
+            api_key=api_key,
+            model='qwen-vl-plus-latest',
+            messages=[user_msg]
+        )
+
+        if response and response.get('output') and response['output'].get('choices'):
+            reply = response['output']['choices'][0]['message']['content'][0]['text']
+        else:
+            reply = "❌ 错误：模型未返回有效结果"
+            print("返回内容：", response)
+
+        print("🎬 视频内容总结：", reply)
+
+        messages.append(user_msg)
+        messages.append({
+            "role": "assistant",
+            "content": [{"text": reply}]
+        })
+
+        time.sleep(1)  # 防止触发 QPS 限制
+
+    # 添加最终总结请求
+    final_prompt = "请你根据以上所有图文内容，对整个视频进行总结。"
+    print("\n🧠 最后一轮总结请求：", final_prompt)
+
+    messages.append({
+        "role": "user",
+        "content": [{"text": final_prompt}]
+    })
+
+    response = MultiModalConversation.call(
+        api_key=api_key,
+        model='qwen-vl-plus-latest',
+        messages=messages
+    )
+
+    try:
+        summary = response['output']['choices'][0]['message']['content'][0]['text']
+        print("\n📽️ 视频总结完成：\n", summary)
+
+        if output_summary_path:
+            with open(output_summary_path, "w", encoding="utf-8") as f:
+                json.dump({"summary": summary}, f, ensure_ascii=False, indent=2)
+            print(f"\n✅ 总结已保存至：{output_summary_path}")
+
+        return summary
+
+    except Exception as e:
+        print("❌ 模型调用失败或未返回有效结果")
+        print("返回内容：", response)
+        return None
+
