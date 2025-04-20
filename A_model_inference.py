@@ -149,6 +149,11 @@ def summarize_video_from_all_frames(keyframes_combined, api_key, output_summary_
                 f"语音起始时间是 {frame['start']} 秒，语音结束时间是 {frame['end']} 秒，"
                 f"图像在该视频的第 {frame['timestamp']} 秒取得，请你理解该图片和文本，保持沉默，等待后续指令。"
             )
+        elif frame.get("mode") == "visual_compensate":
+            prompt = (
+                f"当前静默区间的视觉补偿帧"
+                f"图像在该视频的第 {frame['timestamp']} 秒取得，请你理解该图片和文本，保持沉默，等待后续指令。"
+            )
         else:
             prompt=(
                 f"当前是基于视觉显著性抽取的关键帧，图像在该视频的第 {frame['timestamp']} 秒取得，"
