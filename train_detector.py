@@ -12,7 +12,7 @@ import argparse # 用于命令行参数
 import json # 用于加载标注数据
 
 # 导入必要的模块
-from A_feature_extractor import extract_audio_features, get_audio_segment
+from feature_extractor import extract_audio_features, get_audio_segment
 from A_event_detector import EventClassifier, EVENT_CLASSES, NUM_CLASSES, EVENT_TO_ID, VISUAL_DIM, AUDIO_DIM, FUSED_DIM
 from cn_clip.clip import load_from_name
 

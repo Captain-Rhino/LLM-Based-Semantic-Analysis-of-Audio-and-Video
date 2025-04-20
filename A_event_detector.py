@@ -9,7 +9,7 @@ import cv2
 from PIL import Image
 
 # 导入音频特征提取器
-from A_feature_extractor import extract_audio_features, get_audio_segment
+from feature_extractor import extract_audio_features, get_audio_segment
 
 # --- 1. 事件类别定义 (重要：训练和推理必须一致) ---
 EVENT_CLASSES = ["speech", "applause", "music", "silence", "laughter", "background"]

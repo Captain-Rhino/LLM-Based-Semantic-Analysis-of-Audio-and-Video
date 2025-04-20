@@ -1,4 +1,4 @@
-# A_feature_extractor.py
+# feature_extractor.py
 import torch
 import torchaudio
 import torchaudio.transforms as T

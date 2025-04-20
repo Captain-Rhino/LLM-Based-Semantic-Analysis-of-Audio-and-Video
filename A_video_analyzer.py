@@ -6,7 +6,10 @@ from A_audio_extractor import extract_audio_from_video
 from A_audio_recognition import transcribe_audio
 from A_keyframe_extractor import KeyframeExtractor
 from A_model_inference import summarize_video_from_all_frames,build_structured_prompt,generate_video_summary
+from A_visualizer import generate_wordcloud,generate_mindmap
 from cn_clip.clip import load_from_name
+from collections import Counter
+
 
 # ===========================
 # 视频分析主流程（重构版）
@@ -64,6 +67,9 @@ def process_video(video_path, output_dir, api_key):
     print(f"📄 视频总结完成：{summary_output_path}")
 
     # Step 6: 词云或思维导图生成（接口保留）
+    print("\n🎨 生成可视化结果...")
+    wordcloud_path = generate_wordcloud(transcription, summary_output_path,output_dir, video_name)
+
     # from A_visualizer import generate_wordcloud_or_mindmap
     # generate_wordcloud_or_mindmap(transcription, output_dir)
 
