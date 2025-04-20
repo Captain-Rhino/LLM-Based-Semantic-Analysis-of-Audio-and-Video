@@ -1,92 +1,193 @@
-#关键帧识别
 import os
-import json
 import cv2
 import torch
-from PIL import Image
+import numpy as np
 from tqdm import tqdm
+from PIL import Image
+from cn_clip.clip import load_from_name
 import cn_clip.clip as clip
-
-def extract_keyframes_with_clip(video_path, output_dir, asr_data, model, preprocess, device):
-    """
-    提取关键帧并与文本对齐
-    :param video_path: 视频路径
-    :param output_dir: 输出目录
-    :param asr_data: 语音识别的 JSON 数据
-    :param model: 加载的 CLIP 模型
-    :param preprocess: 图像预处理
-    :param device: 计算设备 (cpu 或 cuda)
-    :return: keyframes_info - 提取的关键帧信息列表
-    """
-    cap = cv2.VideoCapture(video_path)
-    fps = cap.get(cv2.CAP_PROP_FPS)
-
-    keyframes_info = []
+import librosa
 
 
+class KeyframeExtractor:
+    def __init__(self, device="cuda"):
+        self.device = device
+        self.model, self.preprocess = load_from_name("ViT-B-16", device=device)
+        self.model.eval()
 
-    # 遍历每个语音段落
-    for i, seg in enumerate(tqdm(asr_data, desc="Processing segments")):
-        start_time, end_time, text = seg["start"], seg["end"], seg["text"]
-        start_frame = int(start_time * fps)
-        end_frame = int(end_time * fps)
+    def extract_keyframes(self, video_path, output_dir, asr_data=None, audio_path=None):
+        """
+        三模式关键帧抽取：
+        1. 文本引导（有语音时）
+        2. 视觉补偿（静默区间）
+        3. 纯视觉（无语音时）
+        """
+        # 检测静默区间
+        silent_ranges = self._detect_silent_ranges(audio_path) if audio_path else []
 
-        text_len = len(text)
-        # 自动设定帧数：每 20 字提一帧，最少 1 帧
-        num_frames_to_extract = max(1, text_len // 20)
+        if asr_data and len(asr_data) > 0:
+            if silent_ranges:
+                return self._hybrid_extraction(video_path, output_dir, asr_data, silent_ranges)
+            return self._text_guided_extraction(video_path, output_dir, asr_data)
+        return self._visual_guided_extraction(video_path, output_dir)
 
-        # 平均抽取帧 index（帧范围太小时保证至少有1帧）
-        if end_frame - start_frame < num_frames_to_extract:
-            frame_indices = [start_frame]
-        else:
-            step = max(1, (end_frame - start_frame) // (num_frames_to_extract + 1))
-            frame_indices = [start_frame + step * j for j in range(1, num_frames_to_extract + 1)]
+    def _hybrid_extraction(self, video_path, output_dir, asr_data, silent_ranges):
+        """混合模式抽取"""
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        keyframes = []
+        processed_frames = set()
 
-        candidate_frames = []
-        for idx in frame_indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-            success, frame = cap.read()
-            if not success:
-                continue
-            image_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            candidate_frames.append((idx, image_pil, frame))
+        # 文本引导抽取
+        text_kf = self._text_guided_extraction(video_path, output_dir, asr_data)
+        keyframes.extend(text_kf)
+        processed_frames.update(kf["frame_idx"] for kf in text_kf)
 
-        if not candidate_frames:
-            continue
+        # 视觉补偿抽取
+        for start, end in silent_ranges:
+            start_frame, end_frame = int(start * fps), int(end * fps)
+            candidates = [f for f in range(start_frame, end_frame) if f not in processed_frames]
 
-        # 编码文本一次（对全部帧复用）
-        text_token = clip.tokenize([text]).to(device)
-        with torch.no_grad():
-            text_feat = model.encode_text(text_token)
-            text_feat /= text_feat.norm(dim=-1, keepdim=True)
+            for frame_idx in candidates[:2]:  # 每静默段最多2帧
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                ret, frame = cap.read()
+                if not ret: continue
 
-        # 每一帧单独计算相似度并保存
-        for j, (idx, img_pil, frame_raw) in enumerate(candidate_frames):
-            img_tensor = preprocess(img_pil).unsqueeze(0).to(device)
+                save_path = os.path.join(output_dir, f"comp_kf_{frame_idx:05d}.jpg")
+                cv2.imwrite(save_path, frame)
+                keyframes.append({
+                    "mode": "visual_compensate",
+                    "frame_idx": frame_idx,
+                    "frame_rank": len([k for k in keyframes if k["mode"] == "visual_compensate"]),
+                    "timestamp": round(frame_idx / fps, 2),
+                    "start": start,
+                    "end": end,
+                    "text": "",
+                    "text_len": 0,
+                    "importance": self._calc_frame_importance(frame),
+                    "image_path": save_path
+                })
+
+        cap.release()
+        return sorted(keyframes, key=lambda x: x["timestamp"])
+
+    def _text_guided_extraction(self, video_path, output_dir, asr_data):
+        """文本引导模式（保留所有字段）"""
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        keyframes = []
+
+        for seg_idx, seg in enumerate(tqdm(asr_data, desc="文本引导抽帧")):
+            start_frame = int(seg["start"] * fps)
+            end_frame = int(seg["end"] * fps)
+            text = seg["text"]
+
+            # 动态抽帧
+            num_frames = max(1, len(text) // 20)
+            step = max(1, (end_frame - start_frame) // (num_frames + 1))
+            frame_indices = [start_frame + step * i for i in range(1, num_frames + 1)]
+
+            # 文本特征
+            text_input = torch.cat([clip.tokenize(text)]).to(self.device)
             with torch.no_grad():
-                img_feat = model.encode_image(img_tensor)
-                img_feat /= img_feat.norm(dim=-1, keepdim=True)
+                text_feat = self.model.encode_text(text_input)
+                text_feat /= text_feat.norm(dim=-1, keepdim=True)
 
-            sim = torch.cosine_similarity(text_feat, img_feat).item()
-            timestamp = idx / fps
-            save_path = os.path.join(output_dir, f"kf_{i:03d}_{j:02d}_{timestamp:.2f}s.jpg")
-            #print(f"正在保存关键帧到：{save_path}")  # 调试用，打印路径
+            for rank, frame_idx in enumerate(frame_indices):
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                ret, frame = cap.read()
+                if not ret: continue
 
-            # 保存图像
-            cv2.imwrite(save_path, frame_raw)
+                # 计算相似度
+                image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                image_input = self.preprocess(image).unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    image_feat = self.model.encode_image(image_input)
+                    image_feat /= image_feat.norm(dim=-1, keepdim=True)
+                    sim = (image_feat * text_feat).sum().item()
 
-            keyframes_info.append({
-                "segment_index": i,
-                "frame_rank": j,
-                "text_len": text_len,
-                "start": round(start_time, 2),
-                "end": round(end_time, 2),
-                "text": text,
-                "frame_id": idx,
-                "timestamp": round(timestamp, 2),
-                "image_path": save_path,
-                "similarity": round(sim, 4)
+                # 保存结果（保留所有字段）
+                save_path = os.path.join(output_dir, f"text_kf_{seg_idx:03d}_{frame_idx:05d}.jpg")
+                cv2.imwrite(save_path, frame)
+                keyframes.append({
+                    "mode": "text_guided",
+                    "segment_idx": seg_idx,
+                    "frame_idx": frame_idx,
+                    "frame_rank": rank,
+                    "timestamp": round(frame_idx / fps, 2),
+                    "start": seg["start"],
+                    "end": seg["end"],
+                    "text": text,
+                    "text_len": len(text),
+                    "similarity": round(sim, 4),
+                    "image_path": save_path
+                })
+
+        cap.release()
+        return keyframes
+
+    def _visual_guided_extraction(self, video_path, output_dir, num_frames=10):
+        """纯视觉模式（新增字段）"""
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frame_scores = []
+
+        # 计算帧重要性
+        for i in tqdm(range(total_frames), desc="视觉引导抽帧"):
+            ret, frame = cap.read()
+            if not ret: break
+            frame_scores.append((i, self._calc_frame_importance(frame)))
+
+        # 均衡选取
+        selected_indices = []
+        step = total_frames // num_frames
+        for i in range(num_frames):
+            start = i * step
+            end = (i + 1) * step
+            candidates = [idx for idx, _ in frame_scores if start <= idx < end]
+            if candidates: selected_indices.append(candidates[0])
+
+        # 保存结果
+        keyframes = []
+        for rank, idx in enumerate(sorted(selected_indices)):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+            _, frame = cap.read()
+            save_path = os.path.join(output_dir, f"visual_kf_{idx:05d}.jpg")
+            cv2.imwrite(save_path, frame)
+            keyframes.append({
+                "mode": "visual_guided",
+                "frame_idx": idx,
+                "frame_rank": rank,
+                "timestamp": round(idx / fps, 2),
+                "start": idx / fps,
+                "end": (idx + 1) / fps,
+                "text": "",
+                "text_len": 0,
+                "importance": frame_scores[idx][1],
+                "image_path": save_path
             })
 
-    cap.release()
-    return keyframes_info
+        cap.release()
+        return keyframes
+
+    def _calc_frame_importance(self, frame):
+        """视觉重要性计算（不变）"""
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+        hist /= hist.sum() + 1e-10
+        entropy = -np.sum(hist * np.log2(hist + 1e-10))
+
+        image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        image_input = self.preprocess(image).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            features = self.model.encode_image(image_input)
+            clip_score = features.norm().item()
+
+        return 0.7 * entropy + 0.3 * clip_score
+
+    def _detect_silent_ranges(self, audio_path, top_db=30):
+        """静默区间检测"""
+        y, sr = librosa.load(audio_path, sr=None)
+        intervals = librosa.effects.split(y, top_db=top_db)
+        return [(start / sr, end / sr) for start, end in intervals]

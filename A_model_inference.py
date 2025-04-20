@@ -5,15 +5,30 @@ import json
 from dashscope import MultiModalConversation
 
 def build_structured_prompt(frame_info, is_last=False):
-    base = (
-        f"当前是第 {frame_info['segment_index']} 段，这段的语音文本是：“{frame_info['text']}”，"
-        f"语音起始时间是 {frame_info['start']} 秒，语音结束时间是 {frame_info['end']} 秒，"
-        f"图像在该视频的第 {frame_info['timestamp']} 秒取得，"
-    )
-    if is_last:
-        return base + "请你理解该图片和文本，当前是最后一个关键帧，请结合前面的关键帧和信息来总结该视频内容。"
+    if frame_info.get("mode") == "text_guided":
+        # 文本引导模式Prompt
+        base = (
+            f"当前是第 {frame_info['segment_index']} 段，语音文本：“{frame_info['text']}”，"
+            f"时间区间 {frame_info['start']}-{frame_info['end']}秒，"
+            f"图像拍摄于 {frame_info['timestamp']}秒，"
+        )
     else:
-        return base + "请你理解该图片和文本，先不描述，等待后续指令。"
+        # 视觉引导模式Prompt
+        base = (
+            f"当前画面拍摄于视频第 {frame_info['timestamp']}秒，"
+            f"视觉重要性评分 {frame_info.get('importance', 0):.1f}，"
+        )
+
+    return base + ("请总结视频内容。" if is_last else "请你理解该视频片段的帧信息和文本，先不描述，等待后续指令。")
+    # base = (
+    #     f"当前是第 {frame_info['segment_index']} 段，这段的语音文本是：“{frame_info['text']}”，"
+    #     f"语音起始时间是 {frame_info['start']} 秒，语音结束时间是 {frame_info['end']} 秒，"
+    #     f"图像在该视频的第 {frame_info['timestamp']} 秒取得，"
+    # )
+    # if is_last:
+    #     return base + "请你理解该图片和文本，当前是最后一个关键帧，请结合前面的关键帧和信息来总结该视频内容。"
+    # else:
+    #     return base + "请你理解该图片和文本，先不描述，等待后续指令。"
 
 def generate_video_summary(image_path, text, api_key):
     messages = [
@@ -128,11 +143,17 @@ def summarize_video_from_all_frames(keyframes_combined, api_key, output_summary_
     messages = []
 
     for i, frame in enumerate(keyframes_combined):
-        prompt = (
-            f"当前是第 {frame['segment_index']} 段，这段的语音文本是：“{frame['text']}”，"
-            f"语音起始时间是 {frame['start']} 秒，语音结束时间是 {frame['end']} 秒，"
-            f"图像在该视频的第 {frame['timestamp']} 秒取得，请你理解该图片和文本，先不描述，等待后续指令。"
-        )
+        if frame.get("mode") =="text_guided":
+            prompt = (
+                f"当前是第 {frame['segment_idx']} 段，这段的语音文本是：“{frame['text']}”，"
+                f"语音起始时间是 {frame['start']} 秒，语音结束时间是 {frame['end']} 秒，"
+                f"图像在该视频的第 {frame['timestamp']} 秒取得，请你理解该图片和文本，保持沉默，等待后续指令。"
+            )
+        else:
+            prompt=(
+                f"当前是基于视觉显著性抽取的关键帧，图像在该视频的第 {frame['timestamp']} 秒取得，"
+                f"请你观察该图像，理解其内容，保持沉默，等待后续指令。"
+            )
         print(prompt)
 
         user_msg = {

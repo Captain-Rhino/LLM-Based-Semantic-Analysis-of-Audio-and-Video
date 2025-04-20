@@ -4,7 +4,7 @@ import torch
 import time
 from A_audio_extractor import extract_audio_from_video
 from A_audio_recognition import transcribe_audio
-from A_keyframe_extractor import extract_keyframes_with_clip
+from A_keyframe_extractor import KeyframeExtractor
 from A_model_inference import summarize_video_from_all_frames,build_structured_prompt,generate_video_summary
 from cn_clip.clip import load_from_name
 
@@ -35,20 +35,24 @@ def process_video(video_path, output_dir, api_key):
     model.eval()
 
     # Step 4: 提取关键帧并匹配语音片段
-    keyframes_combined = extract_keyframes_with_clip(
-        video_path, output_dir, transcription, model, preprocess, device
+    # === 关键帧抽取 ===
+    extractor = KeyframeExtractor(device=device)
+    keyframes = extractor.extract_keyframes(
+        video_path=video_path,
+        output_dir=output_dir,
+        asr_data=transcription  # 可接受None
     )
 
     # 保存关键帧信息
     video_name = os.path.splitext(os.path.basename(video_path))[0]
     keyframe_json_path = os.path.join(output_dir, f"{video_name}_cnclip.json")
     with open(keyframe_json_path, "w", encoding="utf-8") as f:
-        json.dump(keyframes_combined, f, ensure_ascii=False, indent=2)
+        json.dump(keyframes, f, ensure_ascii=False, indent=2)
     print(f"✅ 关键帧+文本信息已保存：{keyframe_json_path}")
 
     # Step 5: 视频总结
     summary_output_path = os.path.join(output_dir, f"{video_name}_summary.json")
-    summarize_video_from_all_frames(keyframes_combined, api_key, output_summary_path=summary_output_path)
+    summarize_video_from_all_frames(keyframes, api_key, output_summary_path=summary_output_path)
     # for idx, frame_info in enumerate(keyframes_combined):
     #     is_last = (idx == len(keyframes_combined) - 1)
     #     prompt = build_structured_prompt(frame_info, is_last=is_last)
