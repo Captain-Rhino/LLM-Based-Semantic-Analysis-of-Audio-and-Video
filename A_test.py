@@ -6,3 +6,4 @@ model = train_adaptor(
     epochs=100,
     batch_size=4  # 你只有11条数据，调小一点
 )
+

@@ -4,7 +4,7 @@ import base64
 import requests
 import json
 
-def transcribe_audio(audio_path, api_key):
+def transcribe_audio(audio_path, api_key,output_dir=None):
     with open(audio_path, 'rb') as f:
         audio_base64 = base64.b64encode(f.read()).decode('utf-8')
 

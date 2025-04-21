@@ -31,7 +31,7 @@ class ClipAdaptor(nn.Module):
         return self.layers(x.to(self.device))
 
 
-def train_adaptor(data_path, output_dir="adaptor_results", epochs=15, batch_size=16):
+def train_adaptor(data_path, output_dir="adaptor_results", epochs=100, batch_size=16):
     """训练适配层的主函数
     Args:
         data_path: 包含CLIP特征的.pth文件路径
@@ -106,16 +106,29 @@ def train_adaptor(data_path, output_dir="adaptor_results", epochs=15, batch_size
 
     # 加载最佳模型返回
     model.load_state_dict(torch.load(os.path.join(output_dir, "best_adaptor.pth")))
+
+    #验证？
+    model.eval()
+    with torch.no_grad():
+        sample_feat = data["image_feats"][:5].to(device).float()
+        sample_text = data["text_feats"][:5].to(device).float()
+
+        orig_sim = torch.cosine_similarity(sample_feat, sample_text, dim=1)
+        adapted_sim = torch.cosine_similarity(model(sample_feat), sample_text, dim=1)
+
+        print("\n🔍 验证结果对比（前5条样本）：")
+        print(f"原始图文相似度均值:  {orig_sim.mean().item():.4f} ± {orig_sim.std().item():.4f}")
+        print(f"适配后图文相似度均值: {adapted_sim.mean().item():.4f} ± {adapted_sim.std().item():.4f}")
     return model
 
 
-if __name__ == "__main__":
-    # 示例测试代码
-    test_data = {
-        "image_feats": torch.randn(100, 512),
-        "text_feats": torch.randn(100, 512)
-    }
-    torch.save(test_data, "test_features.pth")
-
-    model = train_adaptor("test_features.pth", epochs=3)
-    print(f"训练完成，模型已保存到 adaptor_results/")
+# if __name__ == "__main__":
+#     # 示例测试代码
+#     test_data = {
+#         "image_feats": torch.randn(100, 512),
+#         "text_feats": torch.randn(100, 512)
+#     }
+#     torch.save(test_data, "test_features.pth")
+#
+#     model = train_adaptor("test_features.pth", epochs=3)
+#     print(f"训练完成，模型已保存到 adaptor_results/")

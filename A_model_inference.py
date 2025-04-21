@@ -27,13 +27,13 @@ def summarize_video_from_all_frames(keyframes_combined, api_key, adaptor_path=No
     messages = []
 
     for frame in keyframes_combined:
-        feat_data = torch.load(frame["feat_path"])
-        image_feat = feat_data["image_feat"]
-        if adaptor:
-            image_feat = image_feat.to(device)
+        if frame["mode"] == "text_guided" and "feat_path" in frame and adaptor:
+            feat_data = torch.load(frame["feat_path"])
+            image_feat = feat_data["image_feat"].to(device)
             if image_feat.dtype != torch.float32:
                 image_feat = image_feat.float()
             image_feat = adaptor(image_feat).cpu()
+
 
         # 构造 prompt
         if frame.get("mode") == "text_guided":

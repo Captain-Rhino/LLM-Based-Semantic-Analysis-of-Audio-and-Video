@@ -67,8 +67,8 @@ def generate_wordcloud(transcription, summary_path, output_dir, video_name):
     wc.to_file(output_path)
 
     # 同时保存处理后的文本和词频
-    with open(os.path.join(output_dir, f"{video_name}_processed_text.txt"), "w", encoding="utf-8") as f:
-        f.write(combined_text)
+    # with open(os.path.join(output_dir, f"{video_name}_processed_text.txt"), "w", encoding="utf-8") as f:
+    #     f.write(combined_text)
 
     with open(os.path.join(output_dir, f"{video_name}_word_freq.json"), "w", encoding="utf-8") as f:
         json.dump(word_freq, f, ensure_ascii=False, indent=2)
@@ -79,29 +79,47 @@ def generate_wordcloud(transcription, summary_path, output_dir, video_name):
 
 
 from graphviz import Digraph
+import os
+import json
+import re
 
+def generate_mindmap_from_summary(summary_path, output_dir, video_name):
+    """
+    从模型总结 summary.json 文件中提取结构层级，生成中文思维导图
+    """
+    # 读取总结文件
+    with open(summary_path, 'r', encoding='utf-8') as f:
+        summary_data = json.load(f)
+        summary_text = summary_data.get("summary", "").strip()
 
-def generate_mindmap(word_freq, output_dir, video_name, top_k=10):
-    """
-    根据词频生成简单思维导图（主词+子节点）
-    :param word_freq: 词频 Counter 字典
-    :param output_dir: 输出路径
-    :param video_name: 视频名称
-    :param top_k: 显示前几个主关键词
-    """
-    dot = Digraph(comment='Mindmap', format='png')
+    if not summary_text:
+        print("❌ 总结为空，无法生成思维导图")
+        return None
+
+    # 正则提取结构：每项以编号 1. / 2. / 3. 开头
+    pattern = r"\d+\.\s+\*\*(.*?)\*\*：([\s\S]*?)(?=\n\d+\.|\Z)"
+    matches = re.findall(pattern, summary_text)
+
+    dot = Digraph(comment='Mindmap_from_summary', format='png')
     dot.attr('node', shape='box', fontname="Microsoft YaHei")
-
     center = f"{video_name}_主题"
     dot.node(center)
 
-    # Top k 高频词作为一级主题
-    for i, (word, freq) in enumerate(word_freq.most_common(top_k)):
-        dot.node(word, f"{word} ({freq})")
-        dot.edge(center, word)
+    for title, content in matches:
+        dot.node(title)
+        dot.edge(center, title)
 
-    output_path = os.path.join(output_dir, f"{video_name}_mindmap")
+        # 提取建议方向子点（如：- 建议方向：xxx）
+        sub_items = re.findall(r"[*\-•]\s*(.*?)\n", content)
+        for item in sub_items:
+            clean_item = item.strip(" \n\t\r:：")
+            if clean_item:
+                dot.node(clean_item)
+                dot.edge(title, clean_item)
+
+    # 保存图像
+    output_path = os.path.join(output_dir, f"{video_name}_summary_mindmap")
     dot.render(output_path, cleanup=True)
 
-    print(f"🧠 思维导图已生成：{output_path}.png")
+    print(f"🧠 基于总结的思维导图已生成：{output_path}.png")
     return output_path + ".png"

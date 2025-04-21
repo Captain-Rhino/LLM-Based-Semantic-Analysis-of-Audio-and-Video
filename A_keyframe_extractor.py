@@ -8,6 +8,7 @@ from cn_clip.clip import load_from_name
 import cn_clip.clip as clip
 import librosa
 import glob
+import math
 
 
 class KeyframeExtractor:
@@ -26,14 +27,20 @@ class KeyframeExtractor:
         # 检测静默区间
         silent_ranges = self._detect_silent_ranges(audio_path) if audio_path else []
 
+        # 👇 自动补前段静默区域（如果存在）
+        if asr_data and len(asr_data) > 0 and asr_data[0]["start"] > 0:
+            print(f"🔍 检测到前段静默：0.0 ~ {asr_data[0]['start']} 秒，将自动补帧")
+            silent_ranges.insert(0, (0.0, asr_data[0]["start"]))
+
         if asr_data and len(asr_data) > 0:
             if silent_ranges:
                 return self._hybrid_extraction(video_path, output_dir, asr_data, silent_ranges)
             return self._text_guided_extraction(video_path, output_dir, asr_data)
+
         return self._visual_guided_extraction(video_path, output_dir)
 
     def _hybrid_extraction(self, video_path, output_dir, asr_data, silent_ranges):
-        """混合模式抽取"""
+        """混合模式抽取（文本引导 + 静默补帧）"""
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
         keyframes = []
@@ -44,18 +51,32 @@ class KeyframeExtractor:
         keyframes.extend(text_kf)
         processed_frames.update(kf["frame_idx"] for kf in text_kf)
 
-        # 视觉补偿抽取
+        # 视觉补偿抽取（“每2秒抽1帧，向上取整”）
         for start, end in silent_ranges:
-            start_frame, end_frame = int(start * fps), int(end * fps)
-            candidates = [f for f in range(start_frame, end_frame) if f not in processed_frames]
+            duration = end - start
+            num_frames = int(np.ceil(duration / 2))
+            if num_frames == 0:
+                continue
 
-            for frame_idx in candidates[:2]:  # 每静默段最多2帧
+            interval = duration / num_frames  # 每帧间隔（秒）
+            for i in range(num_frames):
+                timestamp = start + i * interval
+                frame_idx = int(timestamp * fps)
+
+                # ✅ 防止重复抽帧
+                if frame_idx in processed_frames:
+                    continue
+                processed_frames.add(frame_idx)
+
+                # 抽帧并写入图像
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
                 ret, frame = cap.read()
-                if not ret: continue
+                if not ret:
+                    continue
 
                 save_path = os.path.join(output_dir, f"comp_kf_{frame_idx:05d}.jpg")
                 cv2.imwrite(save_path, frame)
+
                 keyframes.append({
                     "mode": "visual_compensate",
                     "frame_idx": frame_idx,
@@ -88,7 +109,7 @@ class KeyframeExtractor:
             text = seg["text"]
 
             # 动态计算抽帧数量（根据文本长度）
-            num_frames = max(1, min(3, len(text) // 20))  # 每段最多3帧
+            num_frames = max(1, min(30, len(text) // 20))  # 每段最多30帧
             step = max(1, (end_frame - start_frame) // (num_frames + 1))
             frame_indices = [start_frame + step * i for i in range(1, num_frames + 1)]
 
@@ -278,8 +299,43 @@ class KeyframeExtractor:
 
         return 0.7 * entropy + 0.3 * clip_score
 
-    def _detect_silent_ranges(self, audio_path, top_db=30):
-        """静默区间检测"""
+    def _detect_silent_ranges(self, audio_path, min_silence_duration=2.0):
+        """
+        基于 ASR JSON 文件 + 音频时长，推断静默区间（单位：秒）
+        - min_silence_duration：判断静默的最小间隔（秒）
+        """
+        import json
+
+        # 🔧 获取音频名（不带后缀）
+        video_name = os.path.splitext(os.path.basename(audio_path))[0]
+
+        # 🗂 构建默认输出目录路径
+        output_dir = os.path.join(os.path.dirname(audio_path), f"CNCLIP_keyframes_{video_name}")
+        json_path = os.path.join(output_dir, f"{video_name}.json")
+
+        if not os.path.exists(json_path):
+            print(f"❌ 未找到 ASR JSON 文件: {json_path}")
+            return []
+
+        with open(json_path, "r", encoding="utf-8") as f:
+            asr_segments = json.load(f)
+
+        # 📏 获取音频时长
         y, sr = librosa.load(audio_path, sr=None)
-        intervals = librosa.effects.split(y, top_db=top_db)
-        return [(start / sr, end / sr) for start, end in intervals]
+        total_duration = len(y) / sr
+
+        # 🧠 计算静默区间
+        silence_ranges = []
+        last_end = 0.0
+
+        for seg in asr_segments:
+            current_start = seg["start"]
+            if current_start - last_end >= min_silence_duration:
+                silence_ranges.append((last_end, current_start))
+            last_end = seg["end"]
+
+        if total_duration - last_end >= min_silence_duration:
+            silence_ranges.append((last_end, total_duration))
+
+        print(f"✅ 共检测到静默区间 {len(silence_ranges)} 段：{silence_ranges}")
+        return silence_ranges
