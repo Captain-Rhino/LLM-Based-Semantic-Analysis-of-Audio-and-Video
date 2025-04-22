@@ -101,7 +101,7 @@ def process_video(video_path, output_dir, api_key, do_finetune=False):  # 新增
 
 
 if __name__ == "__main__":
-    video_path = r'G:\videochat\my_design\test_2.mp4'
+    video_path = r'G:\videochat\my_design\test_movie.mp4'
     output_dir = f"G:/videochat/my_design/CNCLIP_keyframes_{os.path.splitext(os.path.basename(video_path))[0]}"
     api_key = "sk-e6f5a000ba014f92b4857a6dcd782591"
 
