@@ -24,7 +24,19 @@ def summarize_video_from_all_frames(keyframes_combined, api_key, adaptor_path=No
     else:
         print("⚠️ 没有使用ClipAdaptor，直接用原始图像特征")
 
-    messages = []
+    #系统提示
+    initial_prompt = (
+        "你是一个AI音视频理解助手，专门处理视频中的音频和图像信息。"
+        "你的任务是根据视频中的语音文本和关键帧图像，理解并总结整个视频的内容。"
+        "你会收到视频的语音转录结果和图像帧信息，请帮助生成视频总结、提取关键事件，并回答与视频内容相关的问题。"
+    )
+    #初始化
+    messages = [
+        {
+            "role":"system",    #设置角色为系统消息
+            "content":[{"text":initial_prompt}]
+        }
+    ]
 
     for frame in keyframes_combined:
         if frame["mode"] == "text_guided" and "feat_path" in frame and adaptor:

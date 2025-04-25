@@ -239,11 +239,17 @@ class KeyframeExtractor:
     #     cap.release()
     #     return keyframes
 
-    def _visual_guided_extraction(self, video_path, output_dir, num_frames=10):
+    def _visual_guided_extraction(self, video_path, output_dir, t_interval=2):
         """纯视觉模式（新增字段）"""
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        total_duration = total_frames / fps  # 计算视频时长（秒）
+
+        # 计算需要抽取的帧数，向上取整
+        num_frames = int(np.ceil(total_duration / t_interval))  # t 代表每隔 t 秒抽一帧
+        print(f"视频时长: {total_duration:.2f}s, 需要抽取帧数: {num_frames}")
+
         frame_scores = []
 
         # 计算帧重要性

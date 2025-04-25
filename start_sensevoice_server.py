@@ -1,5 +1,7 @@
 import subprocess
 
+print("🟢 SenseVoice 服务器启动中……")
+
 # 定义你想要执行的命令
 command = ["python", "G:/videochat/SenseVoice/speech_server.py"]
 
