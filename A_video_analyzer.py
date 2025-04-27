@@ -21,7 +21,11 @@ def process_video(video_path, output_dir, api_key, do_finetune=False):  # 新增
     audio_path = extract_audio_from_video(video_path, video_path.replace(".mp4", ".mp3"))
 
     #step2:转录文本并保存
+    transcribe_start_time = time.time()  # <<< START: Record time before transcription
     transcription = transcribe_audio(audio_path, api_key)
+    transcribe_end_time = time.time()  # <<< END: Record time after transcription
+    transcribe_duration = transcribe_end_time - transcribe_start_time  # <<< Calculate duration
+    print(f"⏱️ Audio transcription took: {transcribe_duration:.2f} seconds")  # <<< Print duration
     video_name = os.path.splitext(os.path.basename(video_path))[0]
     transcription_save_path = os.path.join(output_dir, f"{video_name}.json")
 
@@ -101,7 +105,7 @@ def process_video(video_path, output_dir, api_key, do_finetune=False):  # 新增
 
 
 if __name__ == "__main__":
-    video_path = r'G:\videochat\my_design\test_video.mp4'
+    video_path = r'G:\videochat\my_design\single_talk.mp4'
     output_dir = f"G:/videochat/my_design/CNCLIP_keyframes_{os.path.splitext(os.path.basename(video_path))[0]}"
     api_key = "sk-e6f5a000ba014f92b4857a6dcd782591"
 
