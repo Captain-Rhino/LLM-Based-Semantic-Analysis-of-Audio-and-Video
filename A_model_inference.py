@@ -176,7 +176,8 @@ def build_video_context(keyframes_combined, api_key, adaptor_path=None):
             "role": "user", # 角色：用户
             "content": user_msg_content
         }
-
+        #测试时间1
+        test_start_1 = time.time()
         # --- 打印将要发送的内容 (调试用) ---
         print(f"\n   📝 发送给模型 (帧 {i+1}):")
         print(f"      图像: {image_path}")
@@ -207,6 +208,9 @@ def build_video_context(keyframes_combined, api_key, adaptor_path=None):
                 # 提取模型回复的文本
                 reply_text = response['output']['choices'][0]['message']['content'][0]['text']
                 print(f"   ✅ 模型回复 (帧 {i+1}): {reply_text[:150]}...") # 打印回复的前150个字符
+                #测试时间2
+                test_start_2 = time.time()
+                print(f"api处理时间：{test_start_2 - test_start_1:.4f} 秒")
             else:
                 # 如果响应结构不符合预期，打印警告和完整的响应内容
                 print(f"   ⚠️ 模型返回结构异常或无有效文本确认 (帧 {i+1})。Response: {response}")

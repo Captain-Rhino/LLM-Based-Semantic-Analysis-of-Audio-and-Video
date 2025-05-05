@@ -15,14 +15,24 @@ import tempfile
 import traceback
 # 尝试导入可视化函数，如果失败则禁用相关按钮
 try:
-    from A_visualizer import generate_wordcloud #, generate_mindmap_from_summary (如果需要思维导图)
+    # 同时导入词云图和思维导图函数
+    from A_visualizer import generate_wordcloud, generate_mindmap_from_summary
     visualizer_available = True
+    # 额外检查 graphviz 是否可用，它是思维导图的核心依赖
+    try:
+        import graphviz
+        mindmap_available = True
+        print("Graphviz 可用，思维导图功能已启用。")
+    except ImportError:
+        mindmap_available = False
+        print("警告：无法导入 graphviz 库，思维导图功能将不可用。请确保已安装 graphviz 并将其添加到系统 PATH。")
 except ImportError:
     visualizer_available = False
-    print("警告：无法导入 A_visualizer，词云图等可视化功能将不可用。")
+    mindmap_available = False # 如果 A_visualizer 都导入不了，那肯定用不了
+    print("警告：无法导入 A_visualizer，词云图和思维导图功能将不可用。")
 
 
-# --- 全局设置 ---
+# --- 全局设置 (保持不变) ---
 save_dir = r"G:\videochat\my_design\streamlit_save"
 os.makedirs(save_dir, exist_ok=True)
 if 'api_key' not in st.session_state:
@@ -30,7 +40,7 @@ if 'api_key' not in st.session_state:
 
 st.set_page_config(page_title="基于AI大模型的视频语义分析系统", layout="wide")
 
-# --- 侧边栏 ---
+# --- 侧边栏 (保持不变) ---
 with st.sidebar:
     st.header("🛠️ 操作设置")
     uploaded_video = st.file_uploader("🎥 上传本地视频文件", type=["mp4"], key="video_uploader")
@@ -45,7 +55,7 @@ with st.sidebar:
         for key in keys_to_clear:
             if key in st.session_state: del st.session_state[key]
 
-    if st.button("🚀 启动 SenseVoice"):
+    if st.button("🚀 启动 SenseVoice"): # 简化显示文本
         server_path = r"G:\videochat\my_design\start_sensevoice_server.py"
         try:
             subprocess.Popen(["python", os.path.normpath(server_path)], creationflags=subprocess.CREATE_NEW_CONSOLE)
@@ -57,7 +67,7 @@ with st.sidebar:
     st.session_state.frame_interval = st.slider("视觉间隔(秒)", 1, 10, st.session_state.get('frame_interval', 2), help="...")
     st.session_state.text_threshold = st.number_input("文本阈值(字/帧)", 10, 500, st.session_state.get('text_threshold', 80), help="...")
 
-# --- 初始化 Session State ---
+# --- 初始化 Session State (保持不变) ---
 session_defaults = {
     'output_text': "", 'transcription_done': False, 'keyframes_done': False,
     'video_context': None, 'video_summary': None, 'qa_answer': "",
@@ -69,7 +79,7 @@ for key, default_value in session_defaults.items():
     if key not in st.session_state: st.session_state[key] = default_value
 
 # --- 主页面布局 ---
-st.title(" 基于 AI 大模型的音视频语义分析系统")
+st.title("基于 AI 大模型的音视频语义分析系统") # 更新标题 Emoji
 st.markdown("请在左侧上传 MP4 视频，然后按顺序点击下方按钮执行分析。")
 
 b1, b2, b3, b4 = st.columns(4)
@@ -77,7 +87,7 @@ b1, b2, b3, b4 = st.columns(4)
 # === 创建状态显示占位符 ===
 status_placeholder = st.empty()
 
-# --- 文件路径动态定义 ---
+# --- 文件路径动态定义 (保持不变) ---
 if uploaded_video and st.session_state.current_video_name == uploaded_video.name:
     if st.session_state.video_dir is None:
         video_raw_name = uploaded_video.name
@@ -93,7 +103,7 @@ if uploaded_video and st.session_state.current_video_name == uploaded_video.name
 
 # --- 功能按钮逻辑 (使用 st.empty) ---
 
-# --- b1: 文本转录 ---
+# --- b1: 文本转录 (代码保持不变) ---
 with b1:
     if st.button("文本转录", key="btn_transcribe"):
         if uploaded_video and st.session_state.video_dir:
@@ -171,8 +181,7 @@ with b1:
         else:
             st.warning("⚠️ 请先在左侧上传视频文件。")
 
-
-# --- b2: 情绪识别 ---
+# --- b2: 情绪识别 (代码保持不变) ---
 with b2:
     if st.button("情绪识别", key="btn_emotion", help="基于转录文本中的 Emoji 进行简单识别"):
          if not uploaded_video or not st.session_state.json_path:
@@ -180,8 +189,8 @@ with b2:
          elif not st.session_state.get('transcription_done') or not os.path.exists(st.session_state.json_path):
              st.warning("⚠️ 请先成功运行“文本转录”。")
          else:
-             status_placeholder.info(" **开始情绪识别...**")
-             log_messages = [" **开始情绪识别...**"]
+             status_placeholder.info("👀 **开始情绪识别...**")
+             log_messages = ["👀 **开始情绪识别...**"]
              try:
                  log_messages.append(f"   - 读取转录文件: `{st.session_state.json_path}`")
                  status_placeholder.info("\n".join(log_messages))
@@ -204,7 +213,7 @@ with b2:
                      result_text = "情绪符号检测结果：\n" + "\n".join(emotion_lines)
                      st.session_state.output_text = result_text
                      log_messages.append("✅ **情绪识别完成。**")
-                     log_messages.append(result_text) # 把结果也加入日志
+                     log_messages.append(result_text)
                      status_placeholder.success("\n".join(log_messages))
                  else:
                      st.session_state.output_text = "未检测到明显情绪符号 (Emoji)。"
@@ -218,8 +227,7 @@ with b2:
                  status_placeholder.error("\n".join(log_messages))
                  st.error(f"❌ 情绪识别过程中发生错误: {e}")
 
-
-# --- b3: 视频总结与问答准备 ---
+# --- b3: 视频总结与问答准备 (代码保持不变) ---
 with b3:
     if st.button("视频总结与问答", key="btn_summary"):
         required_paths = ['video_dir', 'json_path', 'keyframe_json_path', 'summary_path', 'video_path', 'audio_path']
@@ -300,84 +308,91 @@ with b3:
                 status_placeholder.error("\n".join(log_messages))
                 st.error(f"❌ 处理视频总结流程时发生错误: {e}") # 主界面也提示
 
-# --- b4: 生成词云图 ---
+# --- b4: 生成思维导图 ---
 with b4:
-     # 检查可视化库是否可用
-     btn_disabled = not visualizer_available
-     btn_help = "基于转录和总结文本生成词云图" if visualizer_available else "可视化库 A_visualizer 未找到或导入失败"
+     # --- 更新：按钮和帮助文本 ---
+     btn_text = "生成思维导图"
+     btn_help = "基于视频总结生成思维导图 (需要 Graphviz)" if mindmap_available else "Graphviz 未安装或配置不正确，无法生成思维导图"
+     btn_disabled = not mindmap_available # 如果 graphviz 不可用则禁用按钮
 
-     if st.button("生成词云图", key="btn_wordcloud", help=btn_help, disabled=btn_disabled):
-         # --- 前置条件检查 ---
-         required_paths_wc = ['json_path', 'summary_path', 'video_dir']
-         if not uploaded_video or not all(st.session_state.get(p) for p in required_paths_wc):
+     if st.button(btn_text, key="btn_mindmap", help=btn_help, disabled=btn_disabled):
+         # --- 前置条件检查：需要总结完成 ---
+         if not uploaded_video or not st.session_state.summary_path:
              st.warning("⚠️ 请先上传视频。")
-         elif not st.session_state.get('transcription_done') or not os.path.exists(st.session_state.json_path):
-             st.warning("⚠️ 请先运行“文本转录”。")
          elif not st.session_state.get('video_summary') or not os.path.exists(st.session_state.summary_path):
-             st.warning("⚠️ 请先运行“视频总结”。")
+             st.warning("⚠️ 请先运行“视频总结与问答准备”。")
          else:
-             status_placeholder.info("🖼️ **开始生成词云图...**")
-             log_messages = ["🖼️ **开始生成词云图...**"]
+             status_placeholder.info("🧠 **开始生成思维导图...**")
+             log_messages = ["🧠 **开始生成思维导图...**"]
              try:
                  # 导入已在顶部尝试过
-                 log_messages.append("   - 加载数据...")
+                 log_messages.append("   - 加载总结数据...")
                  status_placeholder.info("\n".join(log_messages))
-                 with open(st.session_state.json_path, 'r', encoding='utf-8') as f:
-                     transcription_wc = json.load(f)
+                 # generate_mindmap_from_summary 函数需要总结文件路径
 
-                 video_name_wc = os.path.splitext(uploaded_video.name)[0]
-                 log_messages.append(f"   - 调用生成函数 (视频名: {video_name_wc})...")
+                 video_name_mm = os.path.splitext(uploaded_video.name)[0]
+                 log_messages.append(f"   - 调用生成函数 (视频名: {video_name_mm})...")
                  status_placeholder.info("\n".join(log_messages))
-                 wordcloud_output_path = generate_wordcloud(
-                     transcription=transcription_wc,
+
+                 # --- 调用思维导图生成函数 ---
+                 mindmap_output_path = generate_mindmap_from_summary(
                      summary_path=st.session_state.summary_path,
                      output_dir=st.session_state.video_dir,
-                     video_name=video_name_wc
+                     video_name=video_name_mm
                  )
+                 log_messages.append("   - 生成函数调用完成。")
+                 status_placeholder.info("\n".join(log_messages))
 
-                 if wordcloud_output_path and os.path.exists(wordcloud_output_path):
-                     st.session_state.output_text = f"词云图已生成。\n保存路径: {wordcloud_output_path}"
-                     log_messages.append("   - ✅ 词云图文件已生成。")
-                     log_messages.append("✅ **词云图生成成功！**")
+                 # --- 检查并显示结果 ---
+                 if mindmap_output_path and os.path.exists(mindmap_output_path):
+                     st.session_state.output_text = f"思维导图已生成。\n保存路径: {mindmap_output_path}"
+                     log_messages.append("   - ✅ 思维导图文件已生成。")
+                     log_messages.append("✅ **思维导图生成成功！**")
                      status_placeholder.success("\n".join(log_messages))
                      # 图片在主界面显示
-                     st.image(wordcloud_output_path, caption=f"{video_name_wc} 的词云图")
+                     st.image(mindmap_output_path, caption=f"{video_name_mm} 的思维导图")
                  else:
-                     st.session_state.output_text = "词云图文件未生成。"
-                     log_messages.append("❌ **词云图文件未生成或未找到。**")
+                     st.session_state.output_text = "思维导图文件未生成。"
+                     log_messages.append("❌ **思维导图文件未生成或未找到。**")
                      status_placeholder.error("\n".join(log_messages))
+                     st.error("❌ 思维导图文件未生成，请检查 Graphviz 是否正确安装和配置。")
 
+             except ImportError: # 捕获可能的 Graphviz 运行时导入错误（如果顶部检查不够）
+                 st.session_state.output_text = "生成思维导图失败：缺少 Graphviz 依赖。"
+                 log_messages.append("❌ **生成失败：缺少 Graphviz 依赖。**")
+                 status_placeholder.error("\n".join(log_messages))
+                 st.error("❌ 无法执行 Graphviz，请确保已正确安装并配置其系统路径。")
              except Exception as e:
-                 st.session_state.output_text = f"生成词云图失败: {e}"
-                 log_messages.append(f"❌ **生成词云图时出错: {e}**")
+                 st.session_state.output_text = f"生成思维导图失败: {e}"
+                 log_messages.append(f"❌ **生成思维导图时出错: {e}**")
                  log_messages.append(traceback.format_exc())
                  status_placeholder.error("\n".join(log_messages))
-                 st.error(f"❌ 生成词云图时出错: {e}")
+                 st.error(f"❌ 生成思维导图时出错: {e}")
 
-# --- 主输出区域 和 问答 (QA) 区域 ---
+# --- 主输出区域 和 问答 (QA) 区域 (保持不变) ---
 st.markdown("---")
-st.markdown("### 输出结果 / 视频问答")
+st.markdown("###  输出结果 / 视频问答")
 output_text_area = st.text_area("结果展示区", value=st.session_state.get('output_text', ''), height=250, key="output_area")
 qa_enabled = st.session_state.get('video_context') is not None
 question = st.text_input("请输入你关于视频内容的问题:", placeholder="例如：视频主要讨论了哪些议题？", disabled=not qa_enabled, key="qa_input", help="请先点击“视频总结与问答准备”按钮生成视频理解上下文后，再进行提问。" if not qa_enabled else "")
 
 if st.button("💡 提交问题进行问答", disabled=not qa_enabled, key="btn_qa"):
     if question.strip():
-        status_placeholder.info("🤖 **请求大模型回答中...**") # 使用同一个占位符显示问答状态
+        status_placeholder.info("🤖 **请求大模型回答中...**")
         try:
             answer = ask_question_about_video(st.session_state.video_context, question, st.session_state.api_key)
             st.session_state.qa_answer = answer
-            status_placeholder.empty() # 回答获取后清空状态占位符
+            status_placeholder.empty()
         except Exception as e:
             st.session_state.qa_answer = f"问答时发生错误: {e}"
-            status_placeholder.error(f"❌ 请求问答时发生错误: {e}") # 显示错误
+            status_placeholder.error(f"❌ 请求问答时发生错误: {e}")
             st.error(f"❌ 请求问答时发生错误: {e}")
     else:
         st.warning("⚠️ 请先在上面的输入框中输入你的问题。")
 
-st.text_area("大模型回答区:", value=st.session_state.get('qa_answer', ''), height=150, key="qa_answer_area")
+st.text_area("🧠 大模型回答区:", value=st.session_state.get('qa_answer', ''), height=150, key="qa_answer_area")
 
-# --- 文件路径显示 ---
+# --- 文件路径显示 (保持不变) ---
 if st.session_state.video_dir:
     with st.expander("📂 查看已生成文件的路径 (点击展开)"):
         path_map = {
@@ -385,10 +400,16 @@ if st.session_state.video_dir:
             "转录 JSON": st.session_state.get('json_path'), "清洗后文本": st.session_state.get('text_path'),
             "关键帧 JSON": st.session_state.get('keyframe_json_path'), "CLIP 特征": st.session_state.get('clip_features_path'),
             "总结 JSON": st.session_state.get('summary_path')
+            # 可以动态添加思维导图路径
         }
+        # 动态添加思维导图路径（如果生成了）
+        mindmap_file = os.path.join(st.session_state.video_dir, f"{st.session_state.get('current_video_name', 'video')}_summary_mindmap.png")
+        if os.path.exists(mindmap_file):
+             path_map["思维导图 PNG"] = mindmap_file
+
         all_paths_found = True
         for label, path in path_map.items():
              if path and os.path.exists(path): st.markdown(f"- ✅ **{label}:** `{path}`")
              elif path:
                  st.markdown(f"- ❌ **{label}:** (文件未找到) `{path}`"); all_paths_found = False
-        if all_paths_found: st.markdown("_所有预期文件均已生成。_")
+        # if all_paths_found: st.markdown("_所有预期文件均已生成。_") # 这句话可能不准确，只检查了部分预期文件
